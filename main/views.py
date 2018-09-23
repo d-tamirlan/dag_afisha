@@ -31,8 +31,8 @@ class DagAfishaWebhookHandler(gc.View):
         # convert byte str to unicode str
         json_update = json_update.decode('utf-8')
 
-        # webhook_logger.info('==========================================')
-        # webhook_logger.info('dag_fisha: '+json_update)
+        dag_afisha_logger.info('==========================================')
+        dag_afisha_logger.info('dag_fisha: '+json_update)
 
         update = telebot.types.Update.de_json(json_update)
 

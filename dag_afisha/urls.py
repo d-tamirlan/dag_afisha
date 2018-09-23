@@ -15,7 +15,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from django.conf import settings
+from main import views as vs
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path(f'webhook/{settings.DAG_AFISHA_TOKEN}/', vs.DagAfishaWebhookHandler.as_view()),
 ]
