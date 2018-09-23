@@ -26,6 +26,33 @@ EMOJI = {
 }
 
 
+# class BotAnalytic:
+#     message = ''
+#     response_msg = ''
+#
+#     def send_bot_analytics(self):
+#         user = self.message.from_user
+#         user_id = user.username or user.id
+#
+#         analytics_data = {
+#             'api_key': settings.CHATBASE_API_KEY,
+#             'type': 'user',
+#             'user_id': user_id,
+#             'platform': 'Telegram',
+#             'message': self.message.text,
+#             'not_handled': False,
+#             'intent': 'Старт',
+#             'version': '0.1'
+#         }
+#         Message(**analytics_data).send()
+#
+#         del analytics_data['not_handled']
+#         analytics_data['type'] = 'agent'
+#         analytics_data['message'] = self.response_msg
+#
+#         Message(**analytics_data).send()
+
+
 class Cinemas:
     model = bot_md.Cinema
     group_by = 3
@@ -81,32 +108,9 @@ class Cinemas:
             cinema.description,
         )
 
-    def send_bot_analytics(self):
-        user = self.message.from_user
-        user_id = user.username or user.id
-
-        analytics_data = {
-            'api_key': settings.CHATBASE_API_KEY,
-            'type': 'user',
-            'user_id': user_id,
-            'platform': 'Telegram',
-            'message': self.message.text,
-            'not_handled': False,
-            'intent': 'Старт',
-            'version': '0.1'
-        }
-        Message(**analytics_data).send()
-
-        del analytics_data['not_handled']
-        analytics_data['type'] = 'agent'
-        analytics_data['message'] = self.response_msg
-
-        Message(**analytics_data).send()
-
     def send_cinemas(self, message):
         try:
             self.message = message
-            self.send_bot_analytics()
             markup = self.get_markup()
 
             dag_afisha_bot.send_message(
@@ -151,28 +155,6 @@ class Weeks:
                 value=self.message.text
             )
 
-    def send_bot_analytics(self):
-        user = self.message.from_user
-        user_id = user.username or user.id
-
-        analytics_data = {
-            'api_key': settings.CHATBASE_API_KEY,
-            'type': 'user',
-            'user_id': user_id,
-            'platform': 'Telegram',
-            'message': self.message.text,
-            'intent': 'Выбор кинотеатра',
-            'not_handled': False,
-            'version': '0.1'
-        }
-        Message(**analytics_data).send()
-
-        del analytics_data['not_handled']
-        analytics_data['type'] = 'agent'
-        analytics_data['message'] = self.response_msg
-
-        Message(**analytics_data).send()
-
     def get_week_range(self):
         current_weak_day = timezone.now().weekday()
         weeks_range = self.week_days[current_weak_day:] + self.week_days[:current_weak_day]
@@ -201,7 +183,6 @@ class Weeks:
         return markup
 
     def send_week_range(self):
-        self.send_bot_analytics()
         markup = self.get_markup()
 
         dag_afisha_bot.send_message(
@@ -249,28 +230,6 @@ class FilmSchedule:
             return False
 
         self.selected_cinema = bot_md.Cinema.objects.get(title=last_selected_cinema.value)
-
-    def send_bot_analytics(self):
-        user = self.message.from_user
-        user_id = user.username or user.id
-
-        analytics_data = {
-            'api_key': settings.CHATBASE_API_KEY,
-            'type': 'user',
-            'user_id': user_id,
-            'platform': 'Telegram',
-            'message': self.message.text,
-            'intent': 'Выбор дня недели',
-            'not_handled': False,
-            'version': '0.1'
-        }
-        Message(**analytics_data).send()
-
-        del analytics_data['not_handled']
-        analytics_data['type'] = 'agent'
-        analytics_data['message'] = 'Отправка расписания'
-
-        Message(**analytics_data).send()
 
     def get_selected_day(self, day):
         offset = self.week_days.index(day)
@@ -361,7 +320,6 @@ class FilmSchedule:
         return pretty_texts
 
     def send_schedule(self):
-        self.send_bot_analytics()
         selected_day = self.get_selected_day(self.message.text)
         schedule = self.get_schedule(selected_day)
         if not schedule.exists():
