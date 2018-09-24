@@ -4,9 +4,9 @@ chardet==3.0.4
 dj-database-url==0.5.0
 Django==2.1.1
 gunicorn==19.9.0
-psycopg2==2.6.2
 idna==2.7
 Pillow==5.2.0
+psycopg2==2.7.5
 pyTelegramBotAPI==3.6.6
 pytz==2018.5
 requests==2.19.1
