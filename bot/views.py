@@ -6,7 +6,6 @@ from django.utils import timezone
 import telebot
 import requests
 import logging
-from chatbase import Message
 from bs4 import BeautifulSoup
 from . import models as bot_md
 
