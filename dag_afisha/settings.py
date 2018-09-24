@@ -29,7 +29,7 @@ CHATBASE_API_KEY = 'fa8ad88e-a859-49fc-ab17-68e8d67af0e2'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['dagafisha.pythonanywhere.com']
+ALLOWED_HOSTS = ['dagafisha.herokuapp.com']
 
 
 # Application definition
