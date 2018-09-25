@@ -75,9 +75,10 @@ class Cinemas(BaseMessageHandler):
     keyboard_row_width = 3
     response_msg = 'Выберите кинотеатр'
 
-    def dispatch(self):
+    def __init__(self, message):
+        self.message = message
         self.selected_cinema = self.get_selected_cinema()
-        super(Cinemas, self).dispatch()
+        self.dispatch()
 
     def get_selected_cinema(self):
         """ Getting selected cinema from storage
@@ -125,11 +126,9 @@ class Info(Cinemas):
         return self.send_response()
 
     def send_response(self):
-        cinema = self.model.objects.get(title=self.selected_cinema.value)
-
         dag_afisha_bot.send_message(
             self.message.chat.id,
-            cinema.description,
+            self.selected_cinema.description,
         )
 
 
@@ -157,7 +156,7 @@ class Week(BaseMessageHandler):
         week_range = self.week_days[current_weak_day:] + self.week_days[:current_weak_day]
 
         # adding 'info' and 'back' btn to the end of the range
-        week_range += ['Инфо', EMOJI['back']]
+        week_range += ('Инфо', EMOJI['back'])
         chunks_week_range = (
             tuple(week_range[i:i + self.keyboard_row_width])
             for i in range(0, len(week_range), self.keyboard_row_width)
@@ -264,7 +263,7 @@ class FilmSchedule(Cinemas):
             pretty_text = '  <b>{}</b>  \n\n'.format(film_name)
 
             pretty_rows = [
-                '|  {}  |  {} руб.  |  {}  \n'.format(
+                '|  {}  |  {} руб.  |  {}  '.format(
                     film.time, film.price, film.film_format
                 ) for film in films
             ]
@@ -298,8 +297,8 @@ class FilmSchedule(Cinemas):
 cinemas = bot_md.Cinema.objects.values_list('title', flat=True)
 
 # mark all classes for handling messages
-dag_afisha_bot.message_handler(commands=['start'], regexp=EMOJI['back'])(Cinemas)
-# dag_afisha_bot.message_handler(regexp=EMOJI['back'])(self.send_cinemas)
+dag_afisha_bot.message_handler(commands=['start'])(Cinemas)
+dag_afisha_bot.message_handler(regexp=EMOJI['back'])(Cinemas)
 
 dag_afisha_bot.message_handler(regexp='Инфо')(Info)
 

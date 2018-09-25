@@ -6,9 +6,9 @@ class TelegramUser(models.Model):
     account_id = models.IntegerField('ID телеграм аккаунта', default=0)
     chat_id = models.IntegerField('ID чата с ботом', default=0)
     is_bot = models.BooleanField('Бот', default=False)
-    first_name = models.CharField('Имя', max_length=255, default='', blank=True)
-    last_name = models.CharField('Фамилия', max_length=255, default='', blank=True)
-    username = models.CharField('Имя пользователя', max_length=255, default='', blank=True)
+    first_name = models.CharField('Имя', max_length=255, null=True, blank=True)
+    last_name = models.CharField('Фамилия', max_length=255, null=True, blank=True)
+    username = models.CharField('Имя пользователя', max_length=255, null=True, blank=True)
     add_date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
