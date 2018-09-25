@@ -1,7 +1,6 @@
 import os
 from django.conf import settings
 from itertools import groupby
-from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 import telebot
 import requests
@@ -25,218 +24,176 @@ EMOJI = {
 }
 
 
-# class BotAnalytic:
-#     message = ''
-#     response_msg = ''
-#
-#     def send_bot_analytics(self):
-#         user = self.message.from_user
-#         user_id = user.username or user.id
-#
-#         analytics_data = {
-#             'api_key': settings.CHATBASE_API_KEY,
-#             'type': 'user',
-#             'user_id': user_id,
-#             'platform': 'Telegram',
-#             'message': self.message.text,
-#             'not_handled': False,
-#             'intent': 'Старт',
-#             'version': '0.1'
-#         }
-#         Message(**analytics_data).send()
-#
-#         del analytics_data['not_handled']
-#         analytics_data['type'] = 'agent'
-#         analytics_data['message'] = self.response_msg
-#
-#         Message(**analytics_data).send()
+class BaseMessageHandler:
+    keyboard_row_width = 0
 
+    def __init__(self, message):
+        self.message = message
+        self.dispatch()
 
-class Cinemas:
-    model = bot_md.Cinema
-    group_by = 3
-    response_msg = 'Выберите кинотеатр'
-    message = ''
+    def dispatch(self):
+        """ entry point """
+        # Checking and creating new user need only for /start command
+        # If it's not /start command  then just response on message
+        if self.message.text != '/start':
+            return self.send_response()
 
-    def __init__(self):
-        dag_afisha_bot.message_handler(commands=['start'])(self.send_cinemas)
-        dag_afisha_bot.message_handler(regexp=EMOJI['back'])(self.send_cinemas)
+        chat_id = self.message.chat.id
 
-        dag_afisha_bot.message_handler(regexp='Инфо')(self.send_info)
+        bot_user, created = bot_md.TelegramUser.objects.get_or_create(
+            account_id=self.message.from_user.id,
+            defaults={
+                'chat_id': chat_id,
+                'is_bot': self.message.from_user.is_bot,
+                'first_name': self.message.from_user.first_name,
+                'last_name': self.message.from_user.last_name,
+                'username': self.message.from_user.username,
+            }
+        )
+        # if chat_id was changed then set new chat_id,
+        # chat_id need for sending messages for users
+        if bot_user.chat_id != chat_id:
+            bot_user.chat_id = chat_id
+            bot_user.save()
 
-    def get_markup(self):
-        markup = telebot.types.ReplyKeyboardMarkup(row_width=self.group_by, resize_keyboard=True)
-        for cinema_group in self.group_cinemas():
-            cinema_group_btns = (
-                telebot.types.KeyboardButton(cinema)
-                for cinema in cinema_group
-            )
-            markup.add(*cinema_group_btns)
+        self.send_response()
+
+    def send_response(self):
+        """ sending response from bot """
+        raise NotImplementedError
+
+    def get_markup(self, chunk_btn_texts):
+        markup = telebot.types.ReplyKeyboardMarkup(row_width=self.keyboard_row_width, resize_keyboard=True)
+        for btn_texts in chunk_btn_texts:
+            markup.add(*btn_texts)
 
         return markup
 
-    def get_cinemas(self):
-        cinemas = self.model.objects.values_list('title', flat=True)
-        return cinemas
 
-    def group_cinemas(self):
-        cinemas = self.get_cinemas()
-        grouped_cinemas = [
-            tuple(cinemas[i:i + self.group_by])
-            for i in range(0, len(cinemas), self.group_by)
-        ]
+class Cinemas(BaseMessageHandler):
+    model = bot_md.Cinema
+    keyboard_row_width = 3
+    response_msg = 'Выберите кинотеатр'
 
-        # dag_afisha_logger.info('grouped_cinemas: ')
-        # dag_afisha_logger.info(grouped_cinemas)
+    def dispatch(self):
+        self.selected_cinema = self.get_selected_cinema()
+        super(Cinemas, self).dispatch()
 
-        return grouped_cinemas
-
-    def send_info(self, message):
+    def get_selected_cinema(self):
+        """ Getting selected cinema from storage
+        if there is no selected cinema, then return None """
         try:
             selected_cinema = bot_md.Storage.objects.get(
-                account_id=message.from_user.id,
-                key='selected_cinema',
-            )
-        except ObjectDoesNotExist:
-            return self.send_cinemas(message)
-
-        cinema = self.model.objects.get(title=selected_cinema.value)
-
-        dag_afisha_bot.send_message(
-            message.chat.id,
-            cinema.description,
-        )
-
-    def send_cinemas(self, message):
-        try:
-            self.message = message
-            markup = self.get_markup()
-
-            dag_afisha_bot.send_message(
-                message.chat.id,
-                self.response_msg,
-                reply_markup=markup
-            )
-        except Exception as e:
-            dag_afisha_logger.info('-*-send_cinemas exception-*-: '+str(e))
-
-
-class Weeks:
-    model = bot_md.Cinema
-    week_days = ('Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс')
-    group_by = 3
-    message = {}
-    response_msg = 'Выберите день недели'
-
-    def __init__(self):
-        cinemas = Cinemas().get_cinemas()
-        dag_afisha_bot.message_handler(func=lambda message: message.text in cinemas)(self.dispatch)
-
-    def dispatch(self, message):
-        try:
-            self.message = message
-            self.set_storage_data()
-            self.send_week_range()
-        except Exception as e:
-            dag_afisha_logger.info('-*-Weeks Exception-*-: '+str(e))
-
-    def set_storage_data(self):
-        selected_cinema = bot_md.Storage.objects.filter(
-            account_id=self.message.from_user.id,
-            key='selected_cinema',
-        )
-        if selected_cinema.exists():
-            selected_cinema.update(value=self.message.text)
-        else:
-            bot_md.Storage.objects.create(
                 account_id=self.message.from_user.id,
                 key='selected_cinema',
-                value=self.message.text
             )
+        except bot_md.Storage.DoesNotExist:
+            return None
 
-    def get_week_range(self):
-        current_weak_day = timezone.now().weekday()
-        weeks_range = self.week_days[current_weak_day:] + self.week_days[:current_weak_day]
-        # dag_afisha_logger.info('weeks_range:' + str(weeks_range))
-        return weeks_range
+        return bot_md.Cinema.objects.get(title=selected_cinema.value)
 
-    def group_week_range(self):
-        week_range = self.get_week_range() + ('Инфо', EMOJI['back'])
-        grouped_week_range = [
-            tuple(week_range[i:i + self.group_by])
-            for i in range(0, len(week_range), self.group_by)
-        ]
-        # dag_afisha_logger.info('grouped_week_range:' + str(grouped_week_range))
-
-        return grouped_week_range
-
-    def get_markup(self):
-        markup = telebot.types.ReplyKeyboardMarkup(row_width=self.group_by, resize_keyboard=True)
-        for weak_chunk in self.group_week_range():
-            weak_chunk_btns = (
-                telebot.types.KeyboardButton(weak)
-                for weak in weak_chunk
-            )
-            markup.add(*weak_chunk_btns)
-
-        return markup
-
-    def send_week_range(self):
-        markup = self.get_markup()
+    def send_response(self):
+        chunk_cinemas = self.get_chunk_cinemas()
+        markup = self.get_markup(chunk_cinemas)
 
         dag_afisha_bot.send_message(
             self.message.chat.id,
             self.response_msg,
             reply_markup=markup
         )
-        # film_schedule = FilmSchedule(message.text, self.get_week_range())
-        # dag_afisha_bot.register_next_step_handler(message, film_schedule.send_schedule)
+
+    def get_chunk_cinemas(self):
+        """ chunk cinemas form table display in telegram keyboard
+        :return chunk_cinemas
+        """
+        cinemas = self.model.objects.values_list('title', flat=True)
+
+        chunk_cinemas = (
+            tuple(cinemas[i:i + self.keyboard_row_width])
+            for i in range(0, len(cinemas), self.keyboard_row_width)
+        )
+
+        return chunk_cinemas
 
 
-class FilmSchedule:
+class Info(Cinemas):
+    def dispatch(self):
+        # if selected cinema doesn't exist then send cinemas for selecting
+        if not self.selected_cinema:
+            return super(Info, self).send_response()
+
+        return self.send_response()
+
+    def send_response(self):
+        cinema = self.model.objects.get(title=self.selected_cinema.value)
+
+        dag_afisha_bot.send_message(
+            self.message.chat.id,
+            cinema.description,
+        )
+
+
+class Week(BaseMessageHandler):
+    model = bot_md.Cinema
+    week_days = ('Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс')
+    keyboard_row_width = 3
+    response_msg = 'Выберите день недели'
+
+    def dispatch(self):
+        # set selected cinema in storage, this need for 'Info' handler
+        bot_md.Storage.objects.update_or_create(
+            account_id=self.message.from_user.id,
+            key='selected_cinema',
+            defaults={
+                'account_id': self.message.from_user.id,
+                'key': 'selected_cinema',
+                'value': self.message.text
+            }
+        )
+        super(Week, self).dispatch()
+
+    def get_chunks_week_range(self):
+        current_weak_day = timezone.now().weekday()
+        week_range = self.week_days[current_weak_day:] + self.week_days[:current_weak_day]
+
+        # adding 'info' and 'back' btn to the end of the range
+        week_range += ['Инфо', EMOJI['back']]
+        chunks_week_range = (
+            tuple(week_range[i:i + self.keyboard_row_width])
+            for i in range(0, len(week_range), self.keyboard_row_width)
+        )
+        return chunks_week_range
+
+    def send_response(self):
+        chunks_week_range = self.get_chunks_week_range()
+        markup = self.get_markup(chunks_week_range)
+
+        dag_afisha_bot.send_message(
+            self.message.chat.id,
+            self.response_msg,
+            reply_markup=markup
+        )
+
+
+class FilmSchedule(Cinemas):
     model = bot_md.FilmSchedule
-    selected_cinema = ''
-    week_days = ()
-    message = {}
 
-    def __init__(self, week_days):
-        # dag_afisha_logger.info('selected_cinema: ' + selected_cinema)
-        # cinema = bot_md.Cinema.objects.get(title=selected_cinema)
-        # self.selected_cinema = cinema
-        self.week_days = week_days
-        # dag_afisha_logger.info('FilmSchedule init Exception: '+ str(e))
+    def dispatch(self):
+        # if selected cinema doesn't exist then send cinemas for selecting
+        if not self.selected_cinema:
+            return super(FilmSchedule, self).send_response()
 
-        dag_afisha_bot.message_handler(func=lambda message: message.text in week_days)(self.dispatch)
+        return self.send_response()
 
-    def dispatch(self, message):
-        try:
-            self.message = message
-            if self.init_storage_data() is False:
-                return False
-
-            self.send_schedule()
-        except Exception as e:
-            dag_afisha_logger.info('-*-FilmSchedule dispatch Exception-*-: '+str(e))
-
-    def init_storage_data(self):
-        try:
-            last_selected_cinema = bot_md.Storage.objects.get(
-                account_id=self.message.from_user.id,
-                key='selected_cinema'
-            )
-        except ObjectDoesNotExist:
-            Cinemas().send_cinemas(self.message)
-            return False
-
-        self.selected_cinema = bot_md.Cinema.objects.get(title=last_selected_cinema.value)
-
-    def get_selected_day(self, day):
-        offset = self.week_days.index(day)
+    def get_selected_day(self):
+        offset = Week.week_days.index(self.message.text)
         selected_day = timezone.now() + timezone.timedelta(days=offset)
         return selected_day
 
-    def get_schedule(self, selected_day):
+    def get_schedule(self):
         """ get schedule from db """
+        selected_day = self.get_selected_day()
+
         schedule = self.model.objects.filter(
             cinema=self.selected_cinema,
             date=selected_day
@@ -261,13 +218,15 @@ class FilmSchedule:
 
         return schedule_html.strip()
 
-    def parse_schedule_html(self, selected_day):
+    def parse_schedule_html(self):
         """ parse schedule html and save in db """
+
+        selected_day = self.get_selected_day()
 
         schedule_html = self.get_schedule_html(selected_day)
 
         if not schedule_html.startswith('<table'):
-            return False
+            return None
 
         table = BeautifulSoup(schedule_html, 'html.parser')
 
@@ -280,7 +239,7 @@ class FilmSchedule:
             for info in info_blocks:
                 time = info.find('span').string
                 format_tag = info.find('b', text='3D')
-                film_format = format_tag.string if format_tag else '2D'
+                film_format = getattr(format_tag, 'string', '2D')
                 price = info.find_all('b')[-1].string
                 price = price.split()[0].strip()
 
@@ -297,54 +256,53 @@ class FilmSchedule:
 
         return schedule
 
-    def group_schedule(self, schedule):
-        grouped_schedule = groupby(schedule, key=lambda x: x.name)
-        return grouped_schedule
-
     def get_pretty_texts(self, schedule):
-        grouped_schedule = self.group_schedule(schedule)
-        pretty_texts = []
+        grouped_schedule = groupby(schedule, key=lambda x: x.name)
+        # pretty_texts = []
         for schedule_group in grouped_schedule:
             film_name, films = schedule_group
             pretty_text = '  <b>{}</b>  \n\n'.format(film_name)
 
-            for film in films:
-                pretty_row = '|  {}  |  {} руб.  |  {}  \n'.format(
+            pretty_rows = [
+                '|  {}  |  {} руб.  |  {}  \n'.format(
                     film.time, film.price, film.film_format
-                )
-                pretty_text += pretty_row
+                ) for film in films
+            ]
+            pretty_text += '\n'.join(pretty_rows)
 
-            pretty_texts.append(pretty_text)
+            yield pretty_text
+            # pretty_texts.append(pretty_text)
 
-        return pretty_texts
+        # return pretty_texts
 
-    def send_schedule(self):
-        selected_day = self.get_selected_day(self.message.text)
-        schedule = self.get_schedule(selected_day)
+    def send_response(self):
+        schedule = self.get_schedule()
         if not schedule.exists():
-            schedule = self.parse_schedule_html(selected_day)
+            schedule = self.parse_schedule_html()
 
-        if schedule is False:
+        if not schedule:
             dag_afisha_bot.send_message(
                 self.message.chat.id,
                 'Расписания пока нет'
             )
-        else:
-            for pretty_text in self.get_pretty_texts(schedule):
-                dag_afisha_bot.send_message(
-                    self.message.chat.id,
-                    pretty_text,
-                    parse_mode='HTML'
-                )
+            return None
 
-            # dag_afisha_bot.register_next_step_handler(message, self.send_schedule)
+        for pretty_text in self.get_pretty_texts(schedule):
+            dag_afisha_bot.send_message(
+                self.message.chat.id,
+                pretty_text,
+                parse_mode='HTML'
+            )
 
-Cinemas()
-FilmSchedule(Weeks().get_week_range())
 
-# @dag_afisha_bot.message_handler(commands=['start'])
-# def echo_bot(message):
-#     dag_afisha_bot.send_message(
-#         message.chat.id,
-#         'Здравствуйте, выберите кинотеатр',
-#     )
+cinemas = bot_md.Cinema.objects.values_list('title', flat=True)
+
+# mark all classes for handling messages
+dag_afisha_bot.message_handler(commands=['start'], regexp=EMOJI['back'])(Cinemas)
+# dag_afisha_bot.message_handler(regexp=EMOJI['back'])(self.send_cinemas)
+
+dag_afisha_bot.message_handler(regexp='Инфо')(Info)
+
+dag_afisha_bot.message_handler(func=lambda message: message.text in cinemas)(Week)
+
+dag_afisha_bot.message_handler(func=lambda message: message.text in Week.week_days)(FilmSchedule)
