@@ -3,14 +3,8 @@ from django.contrib.auth.models import User
 
 
 class TelegramUser(models.Model):
-    user = models.ForeignKey(
-        User,
-        verbose_name='Пользователь',
-        related_name='telegram_users',
-        null=True,
-        on_delete=models.CASCADE
-    )
     account_id = models.IntegerField('ID телеграм аккаунта', default=0)
+    chat_id = models.IntegerField('ID чата с ботом', default=0)
     is_bot = models.BooleanField('Бот', default=False)
     first_name = models.CharField('Имя', max_length=255, default='', blank=True)
     last_name = models.CharField('Фамилия', max_length=255, default='', blank=True)
