@@ -50,6 +50,7 @@ class BaseMessageHandler:
                 'username': self.message.from_user.username,
             }
         )
+
         # if chat_id was changed then set new chat_id,
         # chat_id need for sending messages for users
         if bot_user.chat_id != chat_id:

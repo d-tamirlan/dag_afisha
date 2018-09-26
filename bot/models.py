@@ -7,7 +7,6 @@ from django.conf import settings
 class TelegramUser(models.Model):
     def __init__(self, *args, **kwargs):
         super(TelegramUser, self).__init__(*args, **kwargs)
-        post_save.connect(self.send_notice, sender=self)
 
     account_id = models.IntegerField('ID телеграм аккаунта', default=0)
     chat_id = models.IntegerField('ID чата с ботом', default=0)
@@ -25,8 +24,10 @@ class TelegramUser(models.Model):
         verbose_name = 'Пользователя телеграм'
         verbose_name_plural = 'Пользователи телеграма'
 
-    def send_notice(self, sender, instance, *args, **kwargs):
+    @staticmethod
+    def send_notice(sender, instance, *args, **kwargs):
         """ send notice when new user joined bot """
+        print('send_notice')
         email_msg = f"""
             Username: {instance.username}
             First name: {instance.first_name}
@@ -41,6 +42,9 @@ class TelegramUser(models.Model):
             ['konoor@yandex.ru'],
             fail_silently=False,
         )
+
+
+post_save.connect(TelegramUser.send_notice, sender=TelegramUser)
 
 
 class Cinema(models.Model):
