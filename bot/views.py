@@ -134,7 +134,7 @@ class Info(Cinemas):
 
 class Week(BaseMessageHandler):
     model = bot_md.Cinema
-    week_days = ('Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс')
+    __week_days = ('Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс')
     keyboard_row_width = 3
     response_msg = 'Выберите день недели'
 
@@ -149,18 +149,30 @@ class Week(BaseMessageHandler):
                 'value': self.message.text
             }
         )
+
         super(Week, self).dispatch()
 
-    def get_chunks_week_range(self):
+    @classmethod
+    def get_week_days(cls):
+        """ getter for __week_days attribute """
         current_weak_day = timezone.now().weekday()
-        week_range = self.week_days[current_weak_day:] + self.week_days[:current_weak_day]
+
+        # making week days starting from current week day
+        week_days = cls.__week_days[current_weak_day:] + cls.__week_days[:current_weak_day]
+
+        return week_days
+
+    def get_chunks_week_range(self):
+        week_days = self.get_week_days()
 
         # adding 'info' and 'back' btn to the end of the range
-        week_range += ('Инфо', EMOJI['back'])
+        week_days += ('Инфо', EMOJI['back'])
+
         chunks_week_range = (
-            tuple(week_range[i:i + self.keyboard_row_width])
-            for i in range(0, len(week_range), self.keyboard_row_width)
+            tuple(week_days[i:i + self.keyboard_row_width])
+            for i in range(0, len(week_days), self.keyboard_row_width)
         )
+
         return chunks_week_range
 
     def send_response(self):
@@ -184,9 +196,31 @@ class FilmSchedule(Cinemas):
 
         return self.send_response()
 
+    def send_response(self):
+        schedule = self.get_schedule()
+        if not schedule.exists():
+            schedule = self.parse_schedule_html()
+
+        if not schedule:
+            dag_afisha_bot.send_message(
+                self.message.chat.id,
+                'Расписания пока нет'
+            )
+            return None
+
+        for pretty_film_schedule in self.get_pretty_schedule(schedule):
+            dag_afisha_bot.send_message(
+                self.message.chat.id,
+                pretty_film_schedule,
+                parse_mode='HTML'
+            )
+
     def get_selected_day(self):
-        offset = Week.week_days.index(self.message.text)
+        week_days = Week.get_week_days()
+
+        offset = week_days.index(self.message.text)
         selected_day = timezone.now() + timezone.timedelta(days=offset)
+
         return selected_day
 
     def get_schedule(self):
@@ -255,43 +289,23 @@ class FilmSchedule(Cinemas):
 
         return schedule
 
-    def get_pretty_texts(self, schedule):
+    def get_pretty_schedule(self, schedule):
+        """ Return readable format for films schedules """
+
         grouped_schedule = groupby(schedule, key=lambda x: x.name)
-        # pretty_texts = []
+
         for schedule_group in grouped_schedule:
             film_name, films = schedule_group
-            pretty_text = '  <b>{}</b>  \n\n'.format(film_name)
+            pretty_film_schedule = '  <b>{}</b>  \n\n'.format(film_name)
 
             pretty_rows = [
                 '|  {}  |  {} руб.  |  {}  '.format(
                     film.time, film.price, film.film_format
                 ) for film in films
             ]
-            pretty_text += '\n'.join(pretty_rows)
+            pretty_film_schedule += '\n'.join(pretty_rows)
 
-            yield pretty_text
-            # pretty_texts.append(pretty_text)
-
-        # return pretty_texts
-
-    def send_response(self):
-        schedule = self.get_schedule()
-        if not schedule.exists():
-            schedule = self.parse_schedule_html()
-
-        if not schedule:
-            dag_afisha_bot.send_message(
-                self.message.chat.id,
-                'Расписания пока нет'
-            )
-            return None
-
-        for pretty_text in self.get_pretty_texts(schedule):
-            dag_afisha_bot.send_message(
-                self.message.chat.id,
-                pretty_text,
-                parse_mode='HTML'
-            )
+            yield pretty_film_schedule
 
 
 cinemas = bot_md.Cinema.objects.values_list('title', flat=True)
@@ -304,4 +318,4 @@ dag_afisha_bot.message_handler(regexp='Инфо')(Info)
 
 dag_afisha_bot.message_handler(func=lambda message: message.text in cinemas)(Week)
 
-dag_afisha_bot.message_handler(func=lambda message: message.text in Week.week_days)(FilmSchedule)
+dag_afisha_bot.message_handler(func=lambda message: message.text in Week.get_week_days())(FilmSchedule)
