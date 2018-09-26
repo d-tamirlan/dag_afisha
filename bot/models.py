@@ -1,8 +1,14 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.core.mail import send_mail
+from django.conf import settings
 
 
 class TelegramUser(models.Model):
+    def __init__(self, *args, **kwargs):
+        super(TelegramUser, self).__init__(*args, **kwargs)
+        post_save.connect(self.send_notice, sender=self)
+
     account_id = models.IntegerField('ID телеграм аккаунта', default=0)
     chat_id = models.IntegerField('ID чата с ботом', default=0)
     is_bot = models.BooleanField('Бот', default=False)
@@ -18,6 +24,23 @@ class TelegramUser(models.Model):
         ordering = ['-add_date']
         verbose_name = 'Пользователя телеграм'
         verbose_name_plural = 'Пользователи телеграма'
+
+    def send_notice(self, sender, instance, *args, **kwargs):
+        """ send notice when new user joined bot """
+        email_msg = f"""
+            Username: {instance.username}
+            First name: {instance.first_name}
+            Last name: {instance.last_name}
+            Is bot: {instance.is_bot}
+        """
+
+        send_mail(
+            'Новый пользователь',
+            email_msg,
+            settings.DEFAULT_FROM_EMAIL,
+            ['konoor@yandex.ru'],
+            fail_silently=False,
+        )
 
 
 class Cinema(models.Model):
