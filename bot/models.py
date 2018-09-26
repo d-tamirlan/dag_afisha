@@ -5,9 +5,6 @@ from django.conf import settings
 
 
 class TelegramUser(models.Model):
-    def __init__(self, *args, **kwargs):
-        super(TelegramUser, self).__init__(*args, **kwargs)
-
     account_id = models.IntegerField('ID телеграм аккаунта', default=0)
     chat_id = models.IntegerField('ID чата с ботом', default=0)
     is_bot = models.BooleanField('Бот', default=False)
@@ -24,27 +21,27 @@ class TelegramUser(models.Model):
         verbose_name = 'Пользователя телеграм'
         verbose_name_plural = 'Пользователи телеграма'
 
-    @staticmethod
-    def send_notice(sender, instance, *args, **kwargs):
-        """ send notice when new user joined bot """
-        print('send_notice')
-        email_msg = f"""
-            Username: {instance.username}
-            First name: {instance.first_name}
-            Last name: {instance.last_name}
-            Is bot: {instance.is_bot}
-        """
+    # @staticmethod
+    # def send_notice(sender, instance, *args, **kwargs):
+    #     """ send notice when new user joined bot """
+    #     print('send_notice')
+    #     email_msg = f"""
+    #         Username: {instance.username}
+    #         First name: {instance.first_name}
+    #         Last name: {instance.last_name}
+    #         Is bot: {instance.is_bot}
+    #     """
+    #
+    #     send_mail(
+    #         'Новый пользователь',
+    #         email_msg,
+    #         settings.DEFAULT_FROM_EMAIL,
+    #         ['konoor@yandex.ru'],
+    #         fail_silently=False,
+    #     )
 
-        send_mail(
-            'Новый пользователь',
-            email_msg,
-            settings.DEFAULT_FROM_EMAIL,
-            ['konoor@yandex.ru'],
-            fail_silently=False,
-        )
 
-
-post_save.connect(TelegramUser.send_notice, sender=TelegramUser)
+# post_save.connect(TelegramUser.send_notice, sender=TelegramUser)
 
 
 class Cinema(models.Model):
