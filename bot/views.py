@@ -2,12 +2,15 @@ import os
 from django.conf import settings
 from itertools import groupby
 from django.utils import timezone
+import locale
 import telebot
 import requests
 import logging
 from bs4 import BeautifulSoup
 from . import models as bot_md
 
+
+locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 
 dag_afisha_bot = telebot.TeleBot(settings.DAG_AFISHA_TOKEN, threaded=False)
 
@@ -209,14 +212,16 @@ class FilmSchedule(Cinemas):
             )
             return None
 
-        for pretty_film_schedule in self.get_pretty_schedule(schedule):
-            dag_afisha_bot.send_message(
-                self.message.chat.id,
-                pretty_film_schedule,
-                parse_mode='HTML'
-            )
+        pretty_films_schedule = self.get_pretty_schedule(schedule)
+        print(pretty_films_schedule)
+        dag_afisha_bot.send_message(
+            self.message.chat.id,
+            pretty_films_schedule,
+            parse_mode='HTML'
+        )
 
-    def get_selected_day(self):
+    @property
+    def selected_day(self):
         week_days = Week.get_week_days()
 
         offset = week_days.index(self.message.text)
@@ -226,7 +231,7 @@ class FilmSchedule(Cinemas):
 
     def get_schedule(self):
         """ get schedule from db """
-        selected_day = self.get_selected_day()
+        selected_day = self.selected_day
 
         schedule = self.model.objects.filter(
             cinema=self.selected_cinema,
@@ -255,9 +260,7 @@ class FilmSchedule(Cinemas):
     def parse_schedule_html(self):
         """ parse schedule html and save in db """
 
-        selected_day = self.get_selected_day()
-
-        schedule_html = self.get_schedule_html(selected_day)
+        schedule_html = self.get_schedule_html(self.selected_day)
 
         if not schedule_html.startswith('<table'):
             return None
@@ -283,7 +286,7 @@ class FilmSchedule(Cinemas):
                     time=time,
                     film_format=film_format,
                     price=int(price),
-                    date=selected_day
+                    date=self.selected_day
                 )
 
         schedule = self.model.objects.filter(cinema=self.selected_cinema, date=selected_day)
@@ -294,6 +297,10 @@ class FilmSchedule(Cinemas):
         """ Return readable format for films schedules """
 
         grouped_schedule = groupby(schedule, key=lambda x: x.name)
+
+        pretty_film_schedules = []
+
+        selected_week = '  <b>{}</b>  \n\n'.format(self.message.text)
 
         for schedule_group in grouped_schedule:
             film_name, films = schedule_group
@@ -306,7 +313,9 @@ class FilmSchedule(Cinemas):
             ]
             pretty_film_schedule += '\n'.join(pretty_rows)
 
-            yield pretty_film_schedule
+            pretty_film_schedules.append(pretty_film_schedule)
+
+        return selected_week + '\n==============================\n\n'.join(pretty_film_schedules)
 
 
 cinemas = bot_md.Cinema.objects.values_list('title', flat=True)
