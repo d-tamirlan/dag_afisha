@@ -2,15 +2,12 @@ import os
 from django.conf import settings
 from itertools import groupby
 from django.utils import timezone
-import locale
 import telebot
 import requests
 import logging
 from bs4 import BeautifulSoup
 from . import models as bot_md
 
-
-locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 
 dag_afisha_bot = telebot.TeleBot(settings.DAG_AFISHA_TOKEN, threaded=False)
 
@@ -213,7 +210,7 @@ class FilmSchedule(Cinemas):
             return None
 
         pretty_films_schedule = self.get_pretty_schedule(schedule)
-        print(pretty_films_schedule)
+
         dag_afisha_bot.send_message(
             self.message.chat.id,
             pretty_films_schedule,
