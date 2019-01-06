@@ -301,7 +301,7 @@ class FilmSchedule(Cinemas):
 
         for schedule_group in grouped_schedule:
             film_name, films = schedule_group
-            pretty_film_schedule = '  <b>{}</b>  \n\n'.format(film_name)
+            pretty_film_schedule = '<b>{}</b>  \n\n'.format(film_name)
 
             pretty_rows = [
                 '|  {}  |  {} руб.  |  {}  '.format(
