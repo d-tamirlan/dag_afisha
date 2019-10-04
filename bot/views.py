@@ -326,12 +326,3 @@ dag_afisha_bot.message_handler(regexp='Инфо')(Info)
 dag_afisha_bot.message_handler(func=lambda message: message.text in cinemas)(Week)
 
 dag_afisha_bot.message_handler(func=lambda message: message.text in Week.get_week_days())(FilmSchedule)
-
-
-from telebot import apihelper
-
-apihelper.proxy = {'https': 'socks5://207.180.212.121:1080'}
-
-dag_afisha_bot.remove_webhook()
-
-# dag_afisha_bot.polling()
